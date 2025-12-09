@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
 export default function Home() {
   const [formData, setFormData] = useState({
     item: "",
@@ -11,6 +13,8 @@ export default function Home() {
   const [expenses, setExpenses] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
   const [editData, setEditData] = useState({ item: "", amount: "", date: "", category: "" });
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchExpenses();
@@ -18,11 +22,14 @@ export default function Home() {
 
   const fetchExpenses = async () => {
     try {
-      const response = await fetch('http://localhost:4000/expenses');
+      setLoading(true);
+      const response = await fetch(`${API_URL}/expenses`);
       const data = await response.json();
       setExpenses(data);
     } catch (error) {
       console.error('Error fetching expenses:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,7 +41,8 @@ export default function Home() {
     e.preventDefault();
     
     try {
-      const response = await fetch('http://localhost:4000/expenses', {
+      setSubmitting(true);
+      const response = await fetch(`${API_URL}/expenses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -49,21 +57,23 @@ export default function Home() {
       
       if (response.ok) {
         setFormData({ item: "", amount: "", date: "", category: "" });
-        fetchExpenses(); // Refresh the list
+        fetchExpenses();
       }
     } catch (error) {
       console.error('Error adding expense:', error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
     try {
-      const response = await fetch(`http://localhost:4000/expenses/${id}`, {
+      const response = await fetch(`${API_URL}/expenses/${id}`, {
         method: 'DELETE',
       });
       
       if (response.ok) {
-        fetchExpenses(); // Refresh the list
+        fetchExpenses();
       }
     } catch (error) {
       console.error('Error deleting expense:', error);
@@ -76,7 +86,7 @@ export default function Home() {
     setEditData({
       item: expense.itemname,
       amount: expense.itemprice,
-      date: expense.dateofpurchase.split('T')[0], // Format date
+      date: expense.dateofpurchase.split('T')[0],
       category: expense.category
     });
   };
@@ -89,7 +99,7 @@ export default function Home() {
     const expense = expenses[index];
     
     try {
-      const response = await fetch(`http://localhost:4000/expenses/${expense.id}`, {
+      const response = await fetch(`${API_URL}/expenses/${expense.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -104,19 +114,32 @@ export default function Home() {
       
       if (response.ok) {
         setEditingIndex(null);
-        fetchExpenses(); // Refresh the list
+        fetchExpenses();
       }
     } catch (error) {
       console.error('Error updating expense:', error);
     }
   };
 
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditData({ item: "", amount: "", date: "", category: "" });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col justify-center items-center lg:flex-row gap-6 p-4 md:p-10 bg-gray-100 m-20 ">
+    <div className="flex flex-col justify-center items-center lg:flex-row gap-6 p-4 md:p-10 bg-gray-100 m-20">
       {/* Expense Form */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-10 rounded shadow-lg w-full md:max-w-md "
+        className="bg-white p-10 rounded shadow-lg w-full md:max-w-md"
       >
         <h2 className="text-xl font-semibold mb-4">Add Expense</h2>
 
@@ -176,9 +199,10 @@ export default function Home() {
 
         <button
           type="submit"
-          className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition"
+          disabled={submitting}
+          className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition disabled:bg-teal-400"
         >
-          Add Expense
+          {submitting ? "Adding..." : "Add Expense"}
         </button>
       </form>
 
@@ -229,19 +253,29 @@ export default function Home() {
                       <option value="Bills">Bills</option>
                       <option value="Other">Other</option>
                     </select>
-                    <button
-                      onClick={() => handleEditSubmit(index)}
-                      className="bg-green-500 text-white px-3 py-1 rounded"
-                    >
-                      Save
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditSubmit(index)}
+                        className="bg-green-500 text-white px-3 py-1 rounded"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="bg-gray-500 text-white px-3 py-1 rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1">
                       <p className="font-medium">{expense.itemname}</p>
                       <p className="text-gray-600">₹{expense.itemprice}</p>
-                      <p className="text-sm text-gray-500">{new Date(expense.dateofpurchase).toLocaleDateString()}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(expense.dateofpurchase).toLocaleDateString()}
+                      </p>
                       <p className="text-sm text-gray-500">{expense.category}</p>
                     </div>
                     <div className="flex gap-2">
